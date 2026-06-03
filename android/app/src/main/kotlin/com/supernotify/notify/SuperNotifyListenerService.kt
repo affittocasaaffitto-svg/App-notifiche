@@ -1,7 +1,10 @@
 package com.supernotify.notify
 
 import android.app.Notification
+import android.content.ComponentName
 import android.content.Intent
+import android.os.Handler
+import android.os.Looper
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.util.Log
@@ -25,7 +28,26 @@ class SuperNotifyListenerService : NotificationListenerService() {
 
         // Indica se il servizio è attualmente connesso al sistema
         @Volatile var isConnected = false
+
+        /**
+         * Forza il riavvio del listener.
+         * Su Android 7+ (essenziale per Xiaomi/MIUI che uccide il servizio):
+         * richiede al sistema di ri-collegare il componente del listener.
+         * Funziona anche se chiamato dall'esterno (es. da MainActivity).
+         */
+        fun forceRebind(context: android.content.Context) {
+            try {
+                NotificationListenerService.requestRebind(
+                    ComponentName(context, SuperNotifyListenerService::class.java)
+                )
+                Log.d(TAG, "forceRebind richiesto")
+            } catch (e: Exception) {
+                Log.e(TAG, "Errore forceRebind: ${e.message}")
+            }
+        }
     }
+
+    private val handler = Handler(Looper.getMainLooper())
 
     override fun onListenerConnected() {
         super.onListenerConnected()
@@ -43,14 +65,35 @@ class SuperNotifyListenerService : NotificationListenerService() {
         super.onListenerDisconnected()
         isConnected = false
         Log.d(TAG, "Listener disconnesso - tento riconnessione")
-        // Su Android 7+ richiede la riconnessione del listener
-        try {
-            requestRebind(
-                android.content.ComponentName(this, SuperNotifyListenerService::class.java)
-            )
-        } catch (e: Exception) {
-            Log.e(TAG, "Errore rebind: ${e.message}")
-        }
+        // Su Android 7+ richiede la riconnessione del listener.
+        // Ritardo breve: il rebind immediato spesso fallisce su MIUI.
+        handler.postDelayed({
+            try {
+                requestRebind(
+                    ComponentName(this, SuperNotifyListenerService::class.java)
+                )
+                Log.d(TAG, "Rebind richiesto dopo disconnessione")
+            } catch (e: Exception) {
+                Log.e(TAG, "Errore rebind: ${e.message}")
+            }
+        }, 1000)
+    }
+
+    /**
+     * Chiamato quando il sistema (o MIUI) prova a terminare il servizio.
+     * Richiediamo lo start "sticky" per essere riavviati appena possibile.
+     */
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        super.onStartCommand(intent, flags, startId)
+        return START_STICKY
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        isConnected = false
+        Log.d(TAG, "Servizio distrutto - richiedo rebind")
+        // Se MIUI ci uccide, chiediamo al sistema di ri-collegarci
+        forceRebind(applicationContext)
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification?) {

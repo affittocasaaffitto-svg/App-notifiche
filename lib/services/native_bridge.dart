@@ -35,6 +35,34 @@ class NativeBridge {
   /// Indica se siamo su una piattaforma che supporta le notifiche native.
   static bool get isSupported => _supported;
 
+  /// Forza il riavvio del servizio listener.
+  /// Utile su Xiaomi/MIUI quando il sistema uccide il servizio in background.
+  /// Ritorna true se il riavvio è stato richiesto con successo.
+  static Future<bool> reconnectService() async {
+    if (!_supported) return false;
+    try {
+      return await _method.invokeMethod<bool>('reconnectService') ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Verifica lo stato del servizio e, se è disconnesso pur avendo il
+  /// permesso concesso, tenta automaticamente di riavviarlo.
+  /// Ritorna true se il servizio risulta attivo dopo il controllo.
+  static Future<bool> ensureServiceRunning() async {
+    if (!_supported) return false;
+    final granted = await isPermissionGranted();
+    if (!granted) return false;
+    final connected = await isServiceConnected();
+    if (connected) return true;
+    // Permesso concesso ma servizio non connesso -> riavvia
+    await reconnectService();
+    // Piccola attesa e ricontrollo
+    await Future.delayed(const Duration(milliseconds: 1200));
+    return await isServiceConnected();
+  }
+
   /// Apre le Impostazioni di sistema per l'accesso alle notifiche.
   static Future<void> openSettings() async {
     if (!_supported) return;

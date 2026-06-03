@@ -26,7 +26,7 @@ void main() async {
   ));
 }
 
-class SuperNotifyApp extends StatelessWidget {
+class SuperNotifyApp extends StatefulWidget {
   final AppState appState;
   final bool onboardingDone;
   const SuperNotifyApp({
@@ -36,9 +36,42 @@ class SuperNotifyApp extends StatelessWidget {
   });
 
   @override
+  State<SuperNotifyApp> createState() => _SuperNotifyAppState();
+}
+
+class _SuperNotifyAppState extends State<SuperNotifyApp>
+    with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    // All'avvio: verifica che il servizio sia attivo e, se necessario,
+    // lo riavvia automaticamente (importante su Xiaomi/MIUI).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      NativeBridge.ensureServiceRunning();
+    });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed) {
+      // Quando l'utente riapre l'app, controlla e riavvia il servizio
+      // se il sistema lo aveva ucciso in background.
+      NativeBridge.ensureServiceRunning();
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider.value(
-      value: appState,
+      value: widget.appState,
       child: Consumer<AppState>(
         builder: (context, state, _) {
           return MaterialApp(
@@ -55,7 +88,7 @@ class SuperNotifyApp extends StatelessWidget {
   }
 
   Widget _startScreen(AppState state) {
-    if (!onboardingDone) return const OnboardingScreen();
+    if (!widget.onboardingDone) return const OnboardingScreen();
     if (!state.listenerPermissionGranted) return const PermissionScreen();
     return const HomeShell();
   }

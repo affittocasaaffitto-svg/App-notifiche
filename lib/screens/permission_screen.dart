@@ -15,6 +15,9 @@ class PermissionScreen extends StatefulWidget {
 
 class _PermissionScreenState extends State<PermissionScreen>
     with WidgetsBindingObserver {
+  bool _serviceConnected = false;
+  bool _restarting = false;
+
   @override
   void initState() {
     super.initState();
@@ -40,11 +43,34 @@ class _PermissionScreenState extends State<PermissionScreen>
   Future<void> _checkPermission() async {
     if (!NativeBridge.isSupported) return;
     final granted = await NativeBridge.isPermissionGranted();
+    final connected = await NativeBridge.isServiceConnected();
     if (!mounted) return;
     final appState = context.read<AppState>();
     if (granted && !appState.listenerPermissionGranted) {
       appState.grantPermission();
     }
+    setState(() => _serviceConnected = connected);
+  }
+
+  /// Forza il riavvio del servizio (utile su Xiaomi/MIUI).
+  Future<void> _restartService() async {
+    setState(() => _restarting = true);
+    await NativeBridge.reconnectService();
+    await Future.delayed(const Duration(milliseconds: 1500));
+    final connected = await NativeBridge.isServiceConnected();
+    if (!mounted) return;
+    setState(() {
+      _serviceConnected = connected;
+      _restarting = false;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(connected
+            ? 'Servizio riavviato e attivo ✅'
+            : 'Riavvio richiesto. Se non si attiva, riattiva il permesso dalle Impostazioni.'),
+        backgroundColor: connected ? AppColors.tagGroup : AppColors.tagPromo,
+      ),
+    );
   }
 
   @override
@@ -94,7 +120,7 @@ class _PermissionScreenState extends State<PermissionScreen>
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
-                  'v1.2.0 • notifiche corrette',
+                  'v1.3.0 • auto-restart servizio',
                   style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
@@ -164,6 +190,69 @@ class _PermissionScreenState extends State<PermissionScreen>
                   ],
                 ),
               ),
+              // Stato del servizio + riavvio (solo se il permesso è concesso)
+              if (granted && NativeBridge.isSupported) ...[
+                const SizedBox(height: 12),
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 300),
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: (_serviceConnected
+                            ? AppColors.tagGroup
+                            : AppColors.tagPromo)
+                        .withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: (_serviceConnected
+                              ? AppColors.tagGroup
+                              : AppColors.tagPromo)
+                          .withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        _serviceConnected
+                            ? Icons.sensors_rounded
+                            : Icons.sensors_off_rounded,
+                        color: _serviceConnected
+                            ? AppColors.tagGroup
+                            : AppColors.tagPromo,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          _serviceConnected
+                              ? 'Servizio in ascolto. Le notifiche vengono lette.'
+                              : 'Servizio non connesso. Premi Riavvia se non ricevi notifiche.',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: _serviceConnected
+                                ? AppColors.tagGroup
+                                : AppColors.tagPromo,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      _restarting
+                          ? const SizedBox(
+                              width: 22,
+                              height: 22,
+                              child: CircularProgressIndicator(strokeWidth: 2.5),
+                            )
+                          : IconButton(
+                              tooltip: 'Riavvia servizio',
+                              onPressed: _restartService,
+                              icon: Icon(
+                                Icons.refresh_rounded,
+                                color: AppColors.primary,
+                              ),
+                            ),
+                    ],
+                  ),
+                ),
+              ],
               const Spacer(),
               if (!granted)
                 GradientButton(

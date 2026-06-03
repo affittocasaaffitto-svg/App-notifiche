@@ -1,9 +1,11 @@
 package com.supernotify.notify
 
 import android.content.BroadcastReceiver
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.provider.Settings
 import android.text.TextUtils
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
@@ -28,6 +30,11 @@ class MainActivity : FlutterActivity() {
                     "isPermissionGranted" -> result.success(isNotificationServiceEnabled())
                     "isServiceConnected" ->
                         result.success(SuperNotifyListenerService.isConnected)
+                    "reconnectService" -> {
+                        // Forza il riavvio del listener (utile su Xiaomi/MIUI)
+                        val ok = reconnectListenerService()
+                        result.success(ok)
+                    }
                     "openSettings" -> {
                         try {
                             startActivity(
@@ -86,6 +93,43 @@ class MainActivity : FlutterActivity() {
             LocalBroadcastManager.getInstance(this).unregisterReceiver(it)
         }
         receiver = null
+    }
+
+    /**
+     * Forza il riavvio del NotificationListenerService.
+     * Tecnica del "toggle del componente": disabilita e riabilita il
+     * componente del servizio, costringendo Android a riconnettere il
+     * listener. È il metodo più affidabile su Xiaomi/MIUI quando il
+     * sistema uccide il servizio in background.
+     */
+    private fun reconnectListenerService(): Boolean {
+        return try {
+            val component = ComponentName(this, SuperNotifyListenerService::class.java)
+            val pm = packageManager
+            // Disabilita il componente
+            pm.setComponentEnabledSetting(
+                component,
+                PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                PackageManager.DONT_KILL_APP
+            )
+            // Riabilita il componente -> il sistema ricollega il listener
+            pm.setComponentEnabledSetting(
+                component,
+                PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+                PackageManager.DONT_KILL_APP
+            )
+            // Richiede esplicitamente il rebind (Android 7+)
+            SuperNotifyListenerService.forceRebind(applicationContext)
+            true
+        } catch (e: Exception) {
+            // Fallback: solo rebind
+            try {
+                SuperNotifyListenerService.forceRebind(applicationContext)
+                true
+            } catch (_: Exception) {
+                false
+            }
+        }
     }
 
     /** Verifica se l'app ha l'accesso al servizio notifiche */
