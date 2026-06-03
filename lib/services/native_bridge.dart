@@ -22,6 +22,19 @@ class NativeBridge {
     }
   }
 
+  /// Verifica se il servizio listener è effettivamente connesso e attivo.
+  static Future<bool> isServiceConnected() async {
+    if (!_supported) return false;
+    try {
+      return await _method.invokeMethod<bool>('isServiceConnected') ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Indica se siamo su una piattaforma che supporta le notifiche native.
+  static bool get isSupported => _supported;
+
   /// Apre le Impostazioni di sistema per l'accesso alle notifiche.
   static Future<void> openSettings() async {
     if (!_supported) return;

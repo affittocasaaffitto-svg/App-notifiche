@@ -26,8 +26,17 @@ class MainActivity : FlutterActivity() {
             .setMethodCallHandler { call, result ->
                 when (call.method) {
                     "isPermissionGranted" -> result.success(isNotificationServiceEnabled())
+                    "isServiceConnected" ->
+                        result.success(SuperNotifyListenerService.isConnected)
                     "openSettings" -> {
-                        startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+                        try {
+                            startActivity(
+                                Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
+                                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            )
+                        } catch (e: Exception) {
+                            startActivity(Intent(Settings.ACTION_SETTINGS))
+                        }
                         result.success(true)
                     }
                     else -> result.notImplemented()

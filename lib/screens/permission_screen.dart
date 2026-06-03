@@ -6,8 +6,46 @@ import '../theme/app_theme.dart';
 import '../widgets/common_widgets.dart';
 import 'home_shell.dart';
 
-class PermissionScreen extends StatelessWidget {
+class PermissionScreen extends StatefulWidget {
   const PermissionScreen({super.key});
+
+  @override
+  State<PermissionScreen> createState() => _PermissionScreenState();
+}
+
+class _PermissionScreenState extends State<PermissionScreen>
+    with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    // Controlla lo stato del permesso all'avvio
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkPermission());
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Quando l'utente torna nell'app dalle Impostazioni, ricontrolla
+    if (state == AppLifecycleState.resumed) {
+      _checkPermission();
+    }
+  }
+
+  Future<void> _checkPermission() async {
+    if (!NativeBridge.isSupported) return;
+    final granted = await NativeBridge.isPermissionGranted();
+    if (!mounted) return;
+    final appState = context.read<AppState>();
+    if (granted && !appState.listenerPermissionGranted) {
+      appState.grantPermission();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -46,6 +84,22 @@ class PermissionScreen extends StatelessWidget {
                 'Accesso alle notifiche',
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 6),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                decoration: BoxDecoration(
+                  color: AppColors.tagGroup.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  'v1.2.0 • notifiche corrette',
+                  style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.tagGroup),
+                ),
               ),
               const SizedBox(height: 14),
               Text(
