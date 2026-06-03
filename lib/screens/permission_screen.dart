@@ -120,7 +120,7 @@ class _PermissionScreenState extends State<PermissionScreen>
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
-                  'v1.3.0 • auto-restart servizio',
+                  'v1.4.0 • watchdog + boot restart',
                   style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w700,

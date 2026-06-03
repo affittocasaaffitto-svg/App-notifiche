@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -41,6 +42,8 @@ class SuperNotifyApp extends StatefulWidget {
 
 class _SuperNotifyAppState extends State<SuperNotifyApp>
     with WidgetsBindingObserver {
+  Timer? _watchdog;
+
   @override
   void initState() {
     super.initState();
@@ -50,10 +53,21 @@ class _SuperNotifyAppState extends State<SuperNotifyApp>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       NativeBridge.ensureServiceRunning();
     });
+    _startWatchdog();
+  }
+
+  /// Controllo periodico ("watchdog"): mentre l'app è aperta, ogni 30s
+  /// verifica che il servizio sia connesso e lo riavvia se è caduto.
+  void _startWatchdog() {
+    _watchdog?.cancel();
+    _watchdog = Timer.periodic(const Duration(seconds: 30), (_) {
+      NativeBridge.ensureServiceRunning();
+    });
   }
 
   @override
   void dispose() {
+    _watchdog?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -65,6 +79,10 @@ class _SuperNotifyAppState extends State<SuperNotifyApp>
       // Quando l'utente riapre l'app, controlla e riavvia il servizio
       // se il sistema lo aveva ucciso in background.
       NativeBridge.ensureServiceRunning();
+      _startWatchdog();
+    } else if (state == AppLifecycleState.paused) {
+      // Sospendi il watchdog quando l'app è in background per non sprecare batteria
+      _watchdog?.cancel();
     }
   }
 
